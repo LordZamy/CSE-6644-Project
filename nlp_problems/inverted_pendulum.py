@@ -2,8 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.sparse.linalg import LinearOperator
 
+from scipy.sparse import spdiags
 from nlp_problems import BaseProblem
-
+import matplotlib.animation as animation
 
 class InvertedPendulum(BaseProblem):
 
@@ -162,7 +163,7 @@ class InvertedPendulum(BaseProblem):
     def H(self, z, lam):
 
         def G_L(z):
-            return self.g(z) - self.G(z).T @ lam
+            return self.g(z) #- self.G(z).T @ lam
 
         def matvec(v):
             dv = self.h*v
@@ -170,7 +171,19 @@ class InvertedPendulum(BaseProblem):
             #return 1./self.h * (G_L(z+dv) - G_L(z))
 
         n = len(z)
-        return LinearOperator((n, n), matvec=matvec)
+        
+        
+        if(True):
+            g_ = np.zeros_like(z)
+
+            for i in range(self.N):
+                 g_[-i] = 1e-5 
+
+            g_[-2 - self.N] = 10
+            g_[-1 - self.N] = 1
+            HH=spdiags(g_, 0, n, n)
+            
+        return HH#LinearOperator((n, n), matvec=matvec)
 
     
     def KKT(self, z, lam):
@@ -191,9 +204,20 @@ class InvertedPendulum(BaseProblem):
             res[n:] = G @ v1
 
             return res
+            
+        def rmatvec(v):
 
+            res = np.zeros(n+m, dtype=v.dtype)
+
+            v1 = v[:n]
+            v2 = v[n:]
+
+            res[:n] = (H.T @ v1) + (G.T @ v2)
+            res[n:] = G @ v1
+                
+            return res
         shape = (n+m, n+m)
-        return LinearOperator(shape, matvec=matvec)
+        return LinearOperator(shape, matvec=matvec,rmatvec=rmatvec)
 
     
     def plot(self, z):
@@ -208,6 +232,28 @@ class InvertedPendulum(BaseProblem):
 
         thetas = -xs[:,0] + np.pi/2
 
+        # 
+
+        fig = plt.figure()
+        ax = plt.axes(xlim=(-1.1, 1.1), ylim=(-1.1, 1.1))
+        line, = ax.plot([], [], lw=3)
+        
+        N=self.N+1;
+        def init():
+            line.set_data([], [])
+            return line,
+        def animate(i):
+            x = np.array([0,np.cos(thetas[i%N])])
+            y = np.array([0,np.sin(thetas[i%N])])
+            line.set_data(x, y)
+            return line,
+
+        anim = animation.FuncAnimation(fig, animate, init_func=init,
+                                       frames=200, interval=100, blit=True)
+
+        anim.save('sine_wave.gif', writer='imagemagick')
+        
+        
         plt.scatter(np.cos(thetas), np.sin(thetas))
         plt.scatter(np.cos(thetas[0]), np.sin(thetas[0]), label='start')
         plt.scatter(np.cos(thetas[-1]), np.sin(thetas[-1]), label='end')
@@ -216,12 +262,5 @@ class InvertedPendulum(BaseProblem):
         plt.xlim([-1.1, 1.1])
         plt.legend()
         plt.show()
-
-        
-
-        
-        
-        
-        
             
         

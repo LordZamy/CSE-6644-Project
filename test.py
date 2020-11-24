@@ -96,7 +96,7 @@ def P1(problem, x, *args):
 
 if __name__ == '__main__':
 
-    N = 10
+    N = 20
     h = 1e-5
     problem = InvertedPendulum(N=N, h=h)
 
@@ -110,7 +110,7 @@ if __name__ == '__main__':
 
     # Modify this to change the solver. Maybe some globalization strategies can be used.
     def solver(A, b, M=None):
-        return linalg.minres(A, b, tol=1e-4, M=M)[0]
+        return linalg.minres(A, b, tol=1e-6, M=M)[0]
 
 
     Mfunc = P1
