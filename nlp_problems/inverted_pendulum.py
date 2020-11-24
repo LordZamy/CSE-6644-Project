@@ -50,15 +50,19 @@ class InvertedPendulum(BaseProblem):
     
     def F(self, z):
         r = 1e-5
+        #r = 1
+        #Q = np.array([[1, 0],[0,1]])
 
+        xs = z[:-self.N]
         us = z[-self.N:]
 
         J = 0
         for i in range(self.N):
-            J += r * us[i]**2
+            #x = xs[i*self.state_dim:(i+1)*self.state_dim]
+            J += r * us[i]**2 #+ x.T @ (Q @ x)
         J *= 0.5
 
-        x1_final, x2_final = z[-self.N-2], z[-self.N-1]
+        x1_final, x2_final = xs[-2], xs[-1]
         J += 0.5 * (10 * x1_final ** 2 + x2_final**2)
 
         return J
@@ -69,13 +73,19 @@ class InvertedPendulum(BaseProblem):
         n = len(z)
 
         g_ = np.zeros_like(z)
-        dz = np.zeros_like(z)
+        # dz = np.zeros_like(z)
         
-        for i in range(n):
-            if i > 0:
-                dz[i-1] = 0
-            dz[i] = self.h
-            g_[i] = 1./(2*self.h) * (self.F(z+dz) - self.F(z-dz))
+        # for i in range(n):
+        #     if i > 0:
+        #         dz[i-1] = 0
+        #     dz[i] = self.h
+        #     g_[i] = 1./(2*self.h) * (self.F(z+dz) - self.F(z-dz))
+
+        for i in range(self.N):
+             g_[-i] = 1e-5 * z[-i]
+
+        g_[-2 - self.N] = 10*z[-2 - self.N]
+        g_[-1 - self.N] = z[-1 - self.N]
 
         return g_
 
