@@ -86,7 +86,7 @@ class InvertedPendulum(BaseProblem):
         #     dz[i] = self.h
         #     g_[i] = 1./(2*self.h) * (self.F(z+dz) - self.F(z-dz))
 
-        for i in range(self.N):
+        for i in range(1, self.N+1):
              g_[-i] = 1e-5 * z[-i]
 
         g_[-2 - self.N] = 10*z[-2 - self.N]
