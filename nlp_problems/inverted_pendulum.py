@@ -6,6 +6,10 @@ from scipy.sparse import spdiags
 from nlp_problems import BaseProblem
 import matplotlib.animation as animation
 
+from scipy.sparse import eye
+
+from scipy import sparse
+
 class InvertedPendulum(BaseProblem):
 
     def __init__(self, N=10, h=1e-5):
@@ -40,8 +44,8 @@ class InvertedPendulum(BaseProblem):
     
     def f(self, x, u):
         """
-        x = [theta, theta_dot]
-        u = torque
+        x = [theta, theta_dot] (State variables?)
+        u = torque (Decision variables?)
         """
         x1, x2 = x
         theta_dot = x2
@@ -143,6 +147,23 @@ class InvertedPendulum(BaseProblem):
             return res
 
         shape = (self.m, self.n)
+        
+        
+        if(True):
+            GG = np.zeros(shape)
+            e = np.zeros_like(z)
+            for i in range(len(e)):
+                if i > 0:
+                    e[i-1] = 0
+                e[i] = 1
+                GG[:,i] = matvec(e)
+            
+            #print(HH) 
+            sG = sparse.csr_matrix(GG) 
+            return sG
+
+        
+        
         return LinearOperator(shape, matvec=matvec, rmatvec=rmatvec)
 
         # n = len(z)
@@ -163,7 +184,7 @@ class InvertedPendulum(BaseProblem):
     def H(self, z, lam):
 
         def G_L(z):
-            return self.g(z) #- self.G(z).T @ lam
+            return self.g(z) - self.G(z).T @ lam
 
         def matvec(v):
             dv = self.h*v
@@ -174,16 +195,21 @@ class InvertedPendulum(BaseProblem):
         
         
         if(True):
-            g_ = np.zeros_like(z)
-
-            for i in range(self.N):
-                 g_[-i] = 1e-5 
-
-            g_[-2 - self.N] = 10
-            g_[-1 - self.N] = 1
-            HH=spdiags(g_, 0, n, n)
+            HH = np.zeros((n,n))
+            e = np.zeros(n)
+            for i in range(len(e)):
+                if i > 0:
+                    e[i-1] = 0
+                e[i] = 1
+                HH[:,i] = matvec(e)
             
-        return HH#LinearOperator((n, n), matvec=matvec)
+            #print(HH)  
+            sH = sparse.csr_matrix(HH) 
+            # vals, vecs = sparse.linalg.eigs(sH,k=6)
+            # print(vals)
+            return sH+0*eye(n)*10**-16
+            
+        return LinearOperator((n, n), matvec=matvec)
 
     
     def KKT(self, z, lam):
