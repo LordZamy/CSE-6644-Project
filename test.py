@@ -152,11 +152,20 @@ if __name__ == '__main__':
     for i in range(len(H)):
         H[:,i] = H_ @ e_i(len(H), i)
 
+    eigvals_H = np.real(np.linalg.eigvals(H))
+    abseigvals_H = np.abs(eigvals_H)
+    
     print(f"shape(H) = {np.shape(H)}")
     print(f"rank(H) = {np.linalg.matrix_rank(H)}")
+    print(f"num zero eigs: {sum(abseigvals_H < 1e-9)}")
+    print(f"num neg eigs = {sum(eigvals_H < 0)}")
+    print(f"num pos eigs = {sum(eigvals_H > 0)}")
 
     # Calculate KKT matrix
-    K = Mfunc(problem, x0, lam) @ problem.KKT(x0, lam)
+    K = problem.KKT(x0, lam)
+    if Mfunc:
+        K = Mfunc(problem, x0, lam) @ K
+        
     eigvals = np.real(linalg.eigs(K, k = problem.nvars + problem.nconstraints - 2)[0])
     abseigvals = np.abs(eigvals)
     
