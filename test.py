@@ -169,7 +169,7 @@ if __name__ == '__main__':
     eigvals = np.real(linalg.eigs(K, k = problem.nvars + problem.nconstraints - 2)[0])
     abseigvals = np.abs(eigvals)
     
-    print(f"shape(H) = {K.shape}")
+    print(f"shape(K) = {K.shape}")
     print(f"cond(K) = {np.max(abseigvals)/np.min(abseigvals)}")
     print(f"num zero eigs = {sum(abseigvals < 1e-9)}")
     print(f"num neg eigs = {sum(eigvals < 0)}")
