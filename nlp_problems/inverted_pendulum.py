@@ -242,6 +242,13 @@ class InvertedPendulum(BaseProblem):
             res[n:] = G @ v1
                 
             return res
+            
+            
+        if (True):
+            sK=sparse.vstack([sparse.hstack([H,G.T]),\
+            sparse.hstack([G,sparse.csr_matrix((G.shape[0],G.shape[0]), dtype=G.dtype) ])])
+            return sK
+            
         shape = (n+m, n+m)
         return LinearOperator(shape, matvec=matvec,rmatvec=rmatvec)
 

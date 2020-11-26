@@ -8,6 +8,7 @@ from scipy.sparse.linalg import spsolve
 
 from nlp_problems import InvertedPendulum
 
+num_iters=0
 
 def optimize(problem, x0, eps=1e-8, max_iters=1000, callback=None, verbose=False, solver=linalg.spsolve, Mfunc=None):
     """
@@ -16,27 +17,38 @@ def optimize(problem, x0, eps=1e-8, max_iters=1000, callback=None, verbose=False
     
     n, m = problem.nvars, problem.nconstraints
 
-    alpha=0.7
+    alpha=0.2
     x = x0
     lam = np.random.randn(m)
-
+    z=np.zeros(n+m)
     for it in range(max_iters):
-
+        
+        temp_t1 = time.time()
         if verbose:
             print(f"--iter: {it+1}")
 
         gx, cx = problem.g(x), problem.c(x)
+        
+        temp_t2= time.time()
         K = problem.KKT(x, lam)
+        time_assembly= time.time()-temp_t2
         
         b = np.block([gx, cx])
-
+        
         if Mfunc:
             M = Mfunc(problem, x, lam)
         else:
             M = None
             
-        z = solver(K, b, M=M)
-
+            
+        # sK_ilu=linalg.spilu(K); 
+        # M = linalg.LinearOperator(K.shape, sK_ilu.solve)  
+        global num_iters
+        num_iters=0
+        temp_t3= time.time()
+        z = solver(K, b,z, M=M)
+        time_solve= time.time()-temp_t3
+        print(num_iters)
         p = -z[:n]
         lam = z[n:]
 
@@ -47,56 +59,15 @@ def optimize(problem, x0, eps=1e-8, max_iters=1000, callback=None, verbose=False
 
         if np.linalg.norm(p) < eps and np.linalg.norm(cx) < eps:
             break
-
+        time_iteration= time.time()-temp_t1
+        print("Time per iteration %.2f \t Time Assembly %.2f \t Time solve %.2f"\
+        %(time_iteration,time_assembly,time_solve));
     if verbose:
         print(f"Optimized in {it-1} iterations")
 
     return x
 
-def optimize_cg(problem, x0, eps=1e-8, max_iters=1000, callback=None, verbose=False, solver=linalg.spsolve, Mfunc=None):
-    """
-    Example function to optimize nonlinear programming problem
-    """
-    
-    n, m = problem.nvars, problem.nconstraints
 
-    x = x0
-    lam = np.random.randn(m)
-
-    for it in range(max_iters):
-
-        if verbose:
-            print(f"--iter: {it+1}")
-
-        gx, cx = problem.g(x), problem.c(x)
-        
-        
-        F = np.block([gx, cx])
-
-        G = problem.G(x)
-        H = problem.H(x, lam)+eye(n)*10**-6
-        
-        
-        # print(n)
-        # print(H.toarray().shape)
-        H0=H;    
-        z = cg_positive(problem,H,G,H0,F)
-
-        p = -z[:n]
-        lam = z[n:]
-
-        x += p
-
-        if callback:
-            callback(x)
-
-        if np.linalg.norm(p) < eps and np.linalg.norm(cx) < eps:
-            break
-
-    if verbose:
-        print(f"Optimized in {it-1} iterations")
-
-    return x
     
     
 def P1(problem, x, *args):
@@ -208,131 +179,39 @@ def P2(problem, x, lam):
     LO = -linalg.LinearOperator(shape, matvec=matvec)
     #print(linalg.eigs(LO)[0])
     return LO
- 
-def cg_positive(problem,H,G,H0,F):
+    
+def P_simple(problem, x, lam):
+    """
+    M = inv([[I B^T]
+             [B  0 ]])
+    """
+    K = problem.KKT(x, lam)
     n, m = problem.nvars, problem.nconstraints
-    F1, F2= F[:n], F[n:]
-    print("antes")
-    F_1=spsolve(H0,F1)
-    print("depois")
-    F_2=G@F_1-F2
-    F_=np.concatenate([F_1,F_2],axis=0);
-    
-    Z=np.zeros_like(F);
-    P=R=F_-M_product_positive(problem, H, G,H0,Z)
-    
-    rsold=(inner_product_positive_F(problem, H, G,H0,F,F_,P)-inner_product_positive_M(problem, H, G,H0,Z,P))
-    for i in range(10000):
-        print(i)
-        P_P=inner_product_positive_M(problem, H, G,H0,P,P)
-        alpha=rsold/P_P
-        Z=Z+alpha*P
-        R=F_-M_product_positive(problem, H, G,H0,Z)
-        
-        rsnew=(inner_product_positive_F(problem, H, G,H0,F,F_,P)-inner_product_positive_M(problem, H, G,H0,Z,P))
-        if(rsnew<10**-6):
-            break
-        beta=rsnew/rsold
-        P=R+beta*P
-        rsold=np.copy(rsnew)
-        print(rsnew)
-        
-    return Z
- 
-def M_product_positive(problem, H, G,H0,v):
-    #https://www.ams.org/journals/mcom/1988-50-181/S0025-5718-1988-0917816-8/S0025-5718-1988-0917816-8.pdf
-    """
-    """
-    n, m = problem.nvars, problem.nconstraints
-    X, Y = v[:n], v[n:]
-    
-    A_U=H@X;
-    A0_inv_A_U= spsolve(H0,A_U)
-    
-    B_T_V=G.T@Y 
-    A0_inv_B_T_V=spsolve(H0,B_T_V)
-    
-    R1=A0_inv_A_U+A0_inv_B_T_V
-    
-    R2_1=G@spsolve(H0,(H@X-H0@X))
-    R2_2=G@spsolve(H0,G.T@Y)
-    
-    R2=R2_1+R2_2
-    
-    R=np.concatenate([R1,R2],axis=0);
-    return R;
- 
-def inner_product_positive_F(problem, H, G,H0,F,F_,v2):
-    #https://www.ams.org/journals/mcom/1988-50-181/S0025-5718-1988-0917816-8/S0025-5718-1988-0917816-8.pdf
-    """
-
-    """
-    n, m = problem.nvars, problem.nconstraints
-    U = F[:n]
-    U_, V_ = F_[:n], F_[n:]
-        
-    W, X = v2[:n], v2[n:]
-    
     shape = (m+n,m+n)
 
-
-    ################
-    A_U=H@U_;
     
-    first=(A_U).dot(W)-U.dot(W)
-    
-    ###################    
-    
-    second=(V_).dot(X)
+    G = problem.G(x)
 
     
-    return first+second
- 
-def inner_product_positive_M(problem, H, G,H0,v1,v2):
-    #https://www.ams.org/journals/mcom/1988-50-181/S0025-5718-1988-0917816-8/S0025-5718-1988-0917816-8.pdf
-    """
+    H = problem.H(x, lam);
+    #sK_ilu=linalg.spilu(H); 
+    
+    def matvec(v):
+        v1, v2 = v[:n], v[n:]
+        
+        res = np.zeros(m+n, dtype=v.dtype)
+        res[:n] = v1
+        res[n:] = v2
+        res=spsolve(K,v)
+        return res
+        
+    
 
-    """
-    n, m = problem.nvars, problem.nconstraints
-    U, V = v1[:n], v1[n:]
+    LO = linalg.LinearOperator(shape, matvec=matvec)
+    #print(linalg.eigs(LO)[0])
+    return LO 
     
-    W, X = v2[:n], v2[n:]
-    
-    shape = (m+n,m+n)
 
-
-    ################
-    A_U=H@U;
-    
-    A0_inv_A_U=spsolve(H0,A_U)
-    
-    A_A0_inv_A_U=H@A0_inv_A_U
-    
-    first=(A_A0_inv_A_U-A_U).dot(W)
-    
-    ###################    
-    B_T_V=G.T@V
-    
-    A0_inv_B_T_V=spsolve(H0,B_T_V)
-    
-    second=(A0_inv_B_T_V-B_T_V).dot(W)
-    ####################
-
-    B_U=G@U
-    
-    B_A0_inv_A_U=G@spsolve(H0,H@U)
-    
-    third=(B_A0_inv_A_U-B_U).dot(X)
-    
-    
-    #############################
-    
-    B_A0_inv_B_T=G@spsolve(H0,G.T@V)
-    
-    fourth=B_A0_inv_B_T.dot(X)
-
-    
-    return first+second+third+fourth
 
 
 if __name__ == '__main__':
@@ -344,15 +223,20 @@ if __name__ == '__main__':
     n = problem.nvars
     x0 = np.random.randn(n)
     
+    
+    
     def callback(x):
         print(f"x[0] = {x[:2]}, x[end] = {x[-N-2:-N]}")
         print(f"||c(x)|| = {np.linalg.norm(problem.c(x))}")
         print(f"F(x) = {problem.F(x)}")
-
+        
+    def solver_n_iter_callback(xk):
+        global num_iters
+        num_iters += 1
     # Modify this to change the solver. Maybe some globalization strategies can be used.
-    def solver(A, b, M=None):
-        return linalg.minres(A, b, tol=1e-6, M=M)[0]
-
+    def solver(A, b,x0, M=None):
+        return linalg.minres(A, b,x0, tol=1e-6, M=M, callback=solver_n_iter_callback)[0]
+        # return spsolve(A,b)
 
     Mfunc = P1
     Mfunc = None
