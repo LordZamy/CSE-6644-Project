@@ -10,14 +10,14 @@ from nlp_problems import InvertedPendulum
 
 num_iters=0
 
-def optimize(problem, x0, eps=1e-8, max_iters=1000, callback=None, verbose=False, solver=linalg.spsolve, Mfunc=None):
+def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False, solver=linalg.spsolve, Mfunc=None):
     """
     Example function to optimize nonlinear programming problem
     """
     
     n, m = problem.nvars, problem.nconstraints
 
-    alpha=0.2
+    alpha=1.0
     x = x0
     lam = np.random.randn(m)
     z=np.zeros(n+m)
@@ -235,7 +235,7 @@ if __name__ == '__main__':
         num_iters += 1
     # Modify this to change the solver. Maybe some globalization strategies can be used.
     def solver(A, b,x0, M=None):
-        return linalg.minres(A, b,x0, tol=1e-6, M=M, callback=solver_n_iter_callback)[0]
+        return linalg.minres(A, b, tol=1e-6, M=M, callback=solver_n_iter_callback)[0]
         # return spsolve(A,b)
 
     Mfunc = P1

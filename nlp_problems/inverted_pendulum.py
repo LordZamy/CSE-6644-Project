@@ -51,7 +51,29 @@ class InvertedPendulum(BaseProblem):
         theta_dot = x2
         theta_ddot = self.grav / self.l * np.sin(x1) - self.mu/(self.m * self.l**2) * x2 + 1./(self.m * self.l**2)*u
         return np.array([theta_dot, theta_ddot])
-
+        
+    def df(self, x, u):
+        """
+        x = [theta, theta_dot] (State variables?)
+        u = torque (Decision variables?)
+        """
+        x1, x2 = x
+        theta_dot = x2
+        theta_ddot = self.grav / self.l * np.sin(x1) - self.mu/(self.m * self.l**2) * x2 + 1./(self.m * self.l**2)*u
+        
+        dx1=self.grav / self.l * np.cos(x1)
+        dx2=- self.mu/(self.m * self.l**2)
+        du= 1./(self.m * self.l**2)
+        
+        #d_theta_dot_dx=np.array([0,1]);
+        
+        dot_dx=np.array([[0,1],[dx1,dx2]]);
+        
+        dot_du=np.array([0,du]);
+        
+        d_theta_ddot_du=np.array([du]);
+        
+        return dot_dx,dot_du
     
     def F(self, z):
         r = 1e-5
@@ -126,7 +148,50 @@ class InvertedPendulum(BaseProblem):
         c_[-1] = xs[1]
 
         return c_
+        
+    def dc(self, z):
 
+        dc_ = np.zeros((self.m,self.n))
+
+        xs = z[:-self.N]
+        us = z[-self.N:]
+
+        dt = 1. / self.N
+
+        # Set dynamic constraints
+        k = 0
+        for i in range(self.N):
+            xnext = xs[k+self.state_dim:k+2*self.state_dim]
+            x = xs[k:k+self.state_dim]
+
+            u = us[i]
+
+            dot_dx,dot_du=self.df(x,u)
+            
+            for j in range(self.state_dim):
+                dc_[k+j,k+self.state_dim+j] = 1
+            dc_[k:k+self.state_dim,k:k+self.state_dim]=-1-dt*dot_dx+np.array([[0,1],[1,0]])#np.concatenate([d_theta_dot_dx,d_theta_ddot_dx],axis=1) )
+            dc_[k:k+self.state_dim,i-self.N]=-dt*dot_du#np.concatenate([d_theta_dot_du,d_theta_ddot_du],axis=0)
+
+
+            k += self.state_dim
+
+        # ending theta & thetadot should be zero
+        for j in range(self.state_dim):
+            dc_[-2*self.state_dim+j,-self.state_dim-self.N+j] =1
+        #dc_[-2*self.state_dim:-self.state_dim,-self.state_dim:] = 1
+
+        # Starting theta at pi radians
+        dc_[-2,0] = 1
+        
+        # Starting thetadot at 0 rad/s
+        dc_[-1,1] = 1
+        #print(dc_)
+        # print(self.N)
+        # print(self.m)
+        # print("_______________")
+        sG = sparse.csr_matrix(dc_) 
+        return sG
     
     def G(self, z):
 
@@ -150,16 +215,20 @@ class InvertedPendulum(BaseProblem):
         
         
         if(True):
-            GG = np.zeros(shape)
-            e = np.zeros_like(z)
-            for i in range(len(e)):
-                if i > 0:
-                    e[i-1] = 0
-                e[i] = 1
-                GG[:,i] = matvec(e)
+            # GG = np.zeros(shape)
+            # e = np.zeros_like(z)
+            # for i in range(len(e)):
+                # if i > 0:
+                    # e[i-1] = 0
+                # e[i] = 1
+                # GG[:,i] = matvec(e)
             
+            #print(GG)
             #print(HH) 
-            sG = sparse.csr_matrix(GG) 
+            #sG = sparse.csr_matrix(GG)
+            sG=self.dc(z) 
+
+            #print(sG.toarray()-GG)
             return sG
 
         
