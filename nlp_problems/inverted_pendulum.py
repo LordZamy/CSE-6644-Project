@@ -32,6 +32,9 @@ class InvertedPendulum(BaseProblem):
         # Number of constraints
         self.m = (self.N+2)*self.state_dim
 
+        self.r = 1e-4
+        self.q = 1
+
         
     @property
     def nvars(self):
@@ -44,18 +47,19 @@ class InvertedPendulum(BaseProblem):
     
     def f(self, x, u):
         """
-        x = [theta, theta_dot] (State variables?)
-        u = torque (Decision variables?)
+        x = [theta, theta_dot] (State variables)
+        u = torque (Decision variables)
         """
         x1, x2 = x
         theta_dot = x2
         theta_ddot = self.grav / self.l * np.sin(x1) - self.mu/(self.m * self.l**2) * x2 + 1./(self.m * self.l**2)*u
         return np.array([theta_dot, theta_ddot])
-        
+
+    
     def df(self, x, u):
         """
-        x = [theta, theta_dot] (State variables?)
-        u = torque (Decision variables?)
+        x = [theta, theta_dot] (State variables)
+        u = torque (Decision variables)
         """
         x1, x2 = x
         theta_dot = x2
@@ -75,18 +79,18 @@ class InvertedPendulum(BaseProblem):
         
         return dot_dx,dot_du
     
+    
     def F(self, z):
-        r = 1e-5
-        #r = 1
-        #Q = np.array([[1, 0],[0,1]])
+        r = self.r
+        Q = self.q * np.array([[1, 0],[0,1]])
 
         xs = z[:-self.N]
         us = z[-self.N:]
 
         J = 0
         for i in range(self.N):
-            #x = xs[i*self.state_dim:(i+1)*self.state_dim]
-            J += r * us[i]**2 #+ x.T @ (Q @ x)
+            x = xs[i*self.state_dim:(i+1)*self.state_dim]
+            J += r * us[i]**2 + x.T @ (Q @ x)
         J *= 0.5
 
         x1_final, x2_final = xs[-2], xs[-1]
@@ -108,8 +112,13 @@ class InvertedPendulum(BaseProblem):
         #     dz[i] = self.h
         #     g_[i] = 1./(2*self.h) * (self.F(z+dz) - self.F(z-dz))
 
-        for i in range(1, self.N+1):
-             g_[-i] = 1e-5 * z[-i]
+        # for i in range(1, self.N+1):
+        #     g_[-i] = 1e-5 * z[-i]
+        for i in range(n):
+            if i < (self.N + 1)*self.state_dim:
+                g_[i] = self.q * z[i]
+            else:
+                g_[i] = self.r * z[i]
 
         g_[-2 - self.N] = 10*z[-2 - self.N]
         g_[-1 - self.N] = z[-1 - self.N]
@@ -192,6 +201,7 @@ class InvertedPendulum(BaseProblem):
         # print("_______________")
         sG = sparse.csr_matrix(dc_) 
         return sG
+
     
     def G(self, z):
 
@@ -231,8 +241,6 @@ class InvertedPendulum(BaseProblem):
             #print(sG.toarray()-GG)
             return sG
 
-        
-        
         return LinearOperator(shape, matvec=matvec, rmatvec=rmatvec)
 
         # n = len(z)
