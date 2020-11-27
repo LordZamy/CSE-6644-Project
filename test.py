@@ -53,8 +53,12 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
         
         temp_t3= time.time()
 
+        # TODO - determine if we're getting the proper residuals
+        cur_x = [x]
         def solver_callback(xk):
-            xn = x - alpha * xk[:n]
+            xn = cur_x[0] - xk[:n]
+            #cur_x[0] = xn
+            
             lam = xk[n:]
             
             num_iters[0] += 1
@@ -117,12 +121,15 @@ if __name__ == '__main__':
     
     # Modify this to change the solver. Maybe some globalization strategies can be used.
     def solver(A, b,x0, M=None, callback=None):
-        return linalg.minres(A, b, tol=1e-6, M=M, callback=callback)[0]
-
+        #return linalg.gmres(A, b, tol=1e-3, M=M, callback=callback, callback_type='x')[0]
+        return linalg.cg(A, b, tol=1e-4, M=M, callback=callback)[0]
+    
+    #Mfunc = preconditioners.bramble_precond
     Mfunc = preconditioners.P1
-    Mfunc = None
+    #Mfunc = None
+    #Mfunc = lambda problem, x, lam: eye(problem.nvars + problem.nconstraints)
 
-    zstar, norm_info = optimize(problem, x0, verbose=True, max_iters=10, solver=solver,
+    zstar, norm_info = optimize(problem, x0, verbose=True, max_iters=20, solver=solver,
                                 callback=outer_callback, Mfunc=Mfunc)
 
     print(f"Total time: {time.time() - t0}")
@@ -135,9 +142,11 @@ if __name__ == '__main__':
     plt.semilogy(times, norm_info['c'], label='c(x)')
     plt.semilogy(times, norm_info['clin'], 'x--', label='c+Gp')
     plt.legend()
+    plt.xlabel("time (s)")
     plt.show()
     plt.semilogy(times, norm_info['Lx'], label=r'$L_x$')
     plt.semilogy(times, norm_info['Lxlin'], label=r'$g-G^T\lambda + Hp$')
+    plt.xlabel("time (s)")
     plt.legend()
     plt.show()
     
@@ -163,7 +172,7 @@ if __name__ == '__main__':
 
     # Calculate Hessian of lagrangian
     lam = np.random.randn(len(G))
-    H_ = problem.H(x0, lam)
+    H_ = problem.H(zstar, lam)
     H = np.zeros(H_.shape)
 
     for i in range(len(H)):
@@ -181,7 +190,12 @@ if __name__ == '__main__':
     # Calculate KKT matrix
     K = problem.KKT(x0, lam)
     if Mfunc:
-        K = Mfunc(problem, x0, lam) @ K
+        M_ = Mfunc(problem, x0, lam)
+        M = np.zeros(M_.shape)
+        for i in range(M_.shape[1]):
+            M[:,i] = M_ @ e_i(M_.shape[0], i)
+        K = M @ K
+        #K = Mfunc(problem, x0, lam) @ K
         
     eigvals = np.real(linalg.eigs(K, k = problem.nvars + problem.nconstraints - 2)[0])
     abseigvals = np.abs(eigvals)
