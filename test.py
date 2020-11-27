@@ -22,7 +22,20 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
     z = np.zeros(n+m)
 
     # For storing residuals in krylov callback
-    norm_info = dict(time=[], c=[], Lx=[], clin=[], Lxlin=[])
+    norm_info = dict(time=[], c=[], Lx=[], clin=[], Lxlin=[],Res=[])
+    
+    
+    #Finite Difference check of gradient
+    # gx = problem.g(x)
+    # F0=problem.F(x)
+    # dx=0.001
+    # for i in range(len(x)):
+        # x[i]+=dx
+        # F=problem.F(x)
+        # dF=(F-F0)/dx
+        # Error=(gx[i]-dF)/dF
+        # x[i]-=dx
+        # print("gx %.3e  dF %.3e  Error %.3e"%(gx[i],dF,Error))
     
     for it in range(max_iters):
         
@@ -56,7 +69,7 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
         # TODO - determine if we're getting the proper residuals
         cur_x = [x]
         def solver_callback(xk):
-            xn = cur_x[0] - xk[:n]
+            xn = cur_x[0] - alpha*xk[:n]
             #cur_x[0] = xn
             
             lam = xk[n:]
@@ -66,10 +79,12 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
             norm_info['c'].append(np.linalg.norm(problem.c(xn)))
             norm_info['Lx'].append(np.linalg.norm(problem.g(xn) - problem.G(xn).T @ lam))
 
-            res = K @ xk - b
+            res = (K @ xk - b)/np.linalg.norm(b)
+            
+            
             norm_info['Lxlin'].append(np.linalg.norm(res[:n]))
             norm_info['clin'].append(np.linalg.norm(res[n:]))
-            
+            norm_info['Res'].append(np.linalg.norm(res))
         
         z = solver(K, b, z, M=M, callback=solver_callback)
 
@@ -101,9 +116,9 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
     
 if __name__ == '__main__':
 
-    PLOT = False
+    PLOT = True
     
-    N = 20
+    N = 50
     h = 1e-5
     problem = InvertedPendulum(N=N, h=h)
 
@@ -122,8 +137,10 @@ if __name__ == '__main__':
     # Modify this to change the solver. Maybe some globalization strategies can be used.
     def solver(A, b,x0, M=None, callback=None):
         #return linalg.gmres(A, b, tol=1e-3, M=M, callback=callback, callback_type='x')[0]
-        #return linalg.cg(A, b, tol=1e-3, M=M, callback=callback)[0]
-        return linalg.minres(A, b, tol=1e-4, M=M, callback=callback)[0]
+        #return linalg.cg(A, b, tol=1e-6, M=M, callback=callback)[0]
+        sol,info=linalg.minres(A, b, tol=1e-4, M=M, callback=callback)
+        
+        return sol
     
     #Mfunc = preconditioners.bramble_precond
     Mfunc = preconditioners.P1
@@ -148,7 +165,15 @@ if __name__ == '__main__':
     plt.xlabel("time (s)")
     plt.show()
     plt.semilogy(times, norm_info['Lx'], label=r'$L_x$')
-    plt.semilogy(times, norm_info['Lxlin'], label=r'$g-G^T\lambda + Hp$')
+    plt.semilogy(times, norm_info['Lxlin'], 'x--', label=r'$g-G^T\lambda + Hp$')
+    plt.semilogy(times, norm_info['Res'], 'x--', label=r'Total Residue')
+    plt.xlabel("time (s)")
+    plt.legend()
+    plt.show()
+    
+    plt.semilogy(times[-5:], norm_info['Lx'][-5:], 'x', label=r'$L_x$')
+    plt.semilogy(times[-5:], norm_info['Lxlin'][-5:], 'x--', label=r'$g-G^T\lambda + Hp$')
+    plt.semilogy(times[-5:], norm_info['Res'][-5:], 'x--', label=r'Total Residue')
     plt.xlabel("time (s)")
     plt.legend()
     plt.show()
