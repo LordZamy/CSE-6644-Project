@@ -1,6 +1,8 @@
 import numpy as np
+import pyamg
 import scipy.sparse.linalg as linalg
 from scipy.sparse.linalg import spsolve
+from scipy.sparse import lil_matrix
 
 
 def P1(problem, x, *args):
@@ -25,7 +27,7 @@ def P1(problem, x, *args):
         v1, v2 = v[:n], v[n:]
         res = np.zeros(m+n, dtype=v.dtype)
         res[:n] = v1
-        res[n:] = linalg.cg(G @ G.T, -v2)[0]
+        res[n:] = linalg.spsolve(G @ G.T, -v2)
         return res
 
     def matvec3(v):
@@ -42,7 +44,7 @@ def P1(problem, x, *args):
     def matvec(v):
         return L @ (U @ (R @ v))
 
-    LO = -linalg.LinearOperator(shape, matvec=matvec)
+    LO = linalg.LinearOperator(shape, matvec=matvec)
     #print(linalg.eigs(LO)[0])
     return LO
 
@@ -141,4 +143,34 @@ def P_simple(problem, x, lam):
 
     LO = linalg.LinearOperator(shape, matvec=matvec)
     #print(linalg.eigs(LO)[0])
-    return LO 
+    return LO
+
+
+def bramble_precond(problem, x, lam):
+
+    H = problem.H(x, lam)
+
+    #Hprecond = pyamg.smoothed_aggregation_solver(H).aspreconditioner()
+    Hprecond = linalg.inv(H)
+    G = problem.G(x)
+    
+    n, m = len(x), len(lam)
+    
+    def matvec(v):
+        v1 = v[:n]
+        v2 = v[n:]
+
+        res = np.zeros((m+n))
+
+        res[:n] = v1
+        res[n:] = G @ (Hprecond @ (G.T @ v2))
+
+        return res
+
+    shape = (m+n, m+n)
+    return linalg.LinearOperator(shape, matvec=matvec)
+
+    
+
+        
+        
