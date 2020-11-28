@@ -122,7 +122,10 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
                 if L > L0:
                     l_M = alpha
                 else:
+                    L0 = L
                     l_m = alpha
+
+
         print(alpha)    
         x=np.copy(x_)
         
@@ -149,9 +152,9 @@ if __name__ == '__main__':
 
     PLOT = True
     
-    N = 50
+    N = 10
     h = 1e-5
-    problem = InvertedPendulum_cart(N=N, h=h)
+    problem = InvertedPendulum(N=N, h=h)
 
     n = problem.nvars
     x0 = np.random.randn(n)
