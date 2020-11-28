@@ -22,12 +22,13 @@ class InvertedPendulum_cart(BaseProblem):
         
         self.h = h  # finite-difference step
         
-        self.grav = 9.8
-        self.m = self.l = 1  # mass and length of pole
+        self.grav = 0
+        self.m_p = 1  # mass  
+        self.l = 2 #length of pole
         self.mu = 0.01  # friction constant
 
         self.m_cart=10
-        self.e=self.m/(self.m_cart+self.m)
+        self.e=self.m_p/(self.m_cart+self.m_p)
         self.state_dim = 4
         self.input_dim = 1
 
@@ -37,8 +38,8 @@ class InvertedPendulum_cart(BaseProblem):
         # Number of constraints
         self.m = (self.N+2)*self.state_dim
 
-        self.r = 1e0
-        self.q = 1
+        self.r = 1e-2
+        self.q = 100
 
         
     @property
@@ -57,9 +58,9 @@ class InvertedPendulum_cart(BaseProblem):
         """
         x1, x2,x3,x4 = x
         y_dot=x2
-        v_dot=-x3*self.e+u
+        v_dot=-1*np.sin(x3)*self.e+u
         theta_dot = x4
-        theta_ddot = x3-u  +   self.grav / self.l * np.cos(x3)*self.e - self.mu/( self.l**2)*self.e * x4
+        theta_ddot = 1*np.sin(x3)-u  +   self.grav / self.l * np.cos(x3)*self.e - self.mu/( self.l**2)*self.e * x4
         return np.array([y_dot,v_dot,theta_dot, theta_ddot])
 
     
@@ -71,9 +72,9 @@ class InvertedPendulum_cart(BaseProblem):
         x1, x2,x3,x4 = x
         
         y_dot_dx=np.array([0,1,0,0]);
-        v_dot_dx=np.array([0,0,-self.e,0]);
+        v_dot_dx=np.array([0,0,-self.e*(np.sin(x3)*0+1*np.cos(x3)),0]);
         theta_dot_dx=np.array([0,0,0,1]);
-        theta_ddot_dx =np.array([0,0,1-self.grav / self.l * np.sin(x3)*self.e,- self.mu/( self.l**2)*self.e]);
+        theta_ddot_dx =np.array([0,0,(np.sin(x3)*0+1*np.cos(x3))-self.grav / self.l * np.sin(x3)*self.e,- self.mu/( self.l**2)*self.e]);
         
         y_dot_du=np.array([0]);
         v_dot_du=np.array([1]);
@@ -412,14 +413,14 @@ class InvertedPendulum_cart(BaseProblem):
         y1 = np.zeros(len(self.time))
 
         #suppose that l = 1
-        x2 = 1*np.sin(theta_a)+x1
-        x2b = 1.05*np.sin(theta_a)+x1
-        y2 = 1*np.cos(theta_a)-y1
-        y2b = 1.05*np.cos(theta_a)-y1
+        x2 = self.l*np.sin(theta_a)+x1
+        x2b = self.l*np.sin(theta_a)+x1
+        y2 = self.l*np.cos(theta_a)-y1
+        y2b = self.l*np.cos(theta_a)-y1
 
         fig = plt.figure(figsize=(8,6.4))
         ax = fig.add_subplot(111,autoscale_on=False,\
-                             xlim=(-8.5,8.5),ylim=(-0.4,1.2))
+                             xlim=(-8.5,8.5),ylim=(-1.2*self.l,1.2*self.l))
         ax.set_xlabel('position')
         ax.get_yaxis().set_visible(False)
 
@@ -457,5 +458,5 @@ class InvertedPendulum_cart(BaseProblem):
 
         ani_a = animation.FuncAnimation(fig, animate, \
                  np.arange(1,len(self.time)), \
-                 interval=100,blit=False,init_func=init)
+                 interval=100+500/self.N,blit=False,init_func=init)
         plt.show()
