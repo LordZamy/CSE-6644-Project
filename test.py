@@ -83,7 +83,7 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
         x += alpha*p
 
         if callback:
-            callback(x)
+            callback(x, lam)
 
         if np.linalg.norm(p) < eps and np.linalg.norm(cx) < eps:
             break
@@ -112,7 +112,7 @@ if __name__ == '__main__':
 
     t0 = time.time()
     
-    def outer_callback(x):
+    def outer_callback(x, lam):
         with np.printoptions(precision=3):
             print(f"x[0] = {x[:2]}, x[end] = {x[-N-2:-N]}")
             print(f"||c(x)|| = {np.linalg.norm(problem.c(x)):.5f}")
@@ -122,14 +122,15 @@ if __name__ == '__main__':
     # Modify this to change the solver. Maybe some globalization strategies can be used.
     def solver(A, b,x0, M=None, callback=None):
         #return linalg.gmres(A, b, tol=1e-3, M=M, callback=callback, callback_type='x')[0]
-        #return linalg.cg(A, b, tol=1e-3, M=M, callback=callback)[0]
-        return linalg.minres(A, b, tol=1e-4, M=M, callback=callback)[0]
+        return linalg.cg(A, b, tol=1e-3, M=M, callback=callback)[0]
+        # return linalg.minres(A, b, tol=1e-4, M=M, callback=callback)[0]
     
-    #Mfunc = preconditioners.bramble_precond
+    # Mfunc = preconditioners.bramble_precond
     Mfunc = preconditioners.P1
-    Mfunc = preconditioners.block_diag
-    #Mfunc = preconditioners.schoberl_precond
-    #Mfunc = None
+    # Mfunc = preconditioners.block_diag
+    # Mfunc = preconditioners.schoberl_precond
+    # Mfunc = preconditioners.diag_hessian
+    # Mfunc = None
     #Mfunc = lambda problem, x, lam: eye(problem.nvars + problem.nconstraints)
 
     zstar, norm_info = optimize(problem, x0, verbose=True, max_iters=20, solver=solver,
