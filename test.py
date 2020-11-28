@@ -100,19 +100,22 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
         lam = z[n:]
 
 
-        L0=problem.F( x)+lam.dot(problem.c(x))
+        L0=np.linalg.norm(problem.c(x))
+        
         L=L0+1
         l_M=1;
         l_m=0.0001
-        
+        alpha=l_M
         while ((l_M-l_m)/2>1.e-4):
-            alpha=(l_M+l_m)/2
+            
             x_ = x + alpha*p
-            L=problem.F( x_)+lam.dot(problem.c(x_))
+            L=np.linalg.norm(problem.c(x_))
+            
             if(L>L0):
                 l_M=alpha
             else:
                 l_m=alpha
+            alpha=(l_M+l_m)/2
         print(alpha)    
         x=np.copy(x_)
         
@@ -140,7 +143,7 @@ if __name__ == '__main__':
 
     PLOT = True
     
-    N = 100
+    N = 50
     h = 1e-5
     problem = InvertedPendulum_cart(N=N, h=h)
 
@@ -174,7 +177,7 @@ if __name__ == '__main__':
     # Mfunc = None
     #Mfunc = lambda problem, x, lam: eye(problem.nvars + problem.nconstraints)
 
-    zstar, norm_info = optimize(problem, x0, verbose=True, max_iters=20, solver=solver,
+    zstar, norm_info = optimize(problem, x0, verbose=True, max_iters=200, solver=solver,
                                 callback=outer_callback, Mfunc=Mfunc)
 
     print(f"Total time: {time.time() - t0}")

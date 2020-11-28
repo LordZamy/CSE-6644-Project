@@ -22,7 +22,7 @@ class InvertedPendulum_cart(BaseProblem):
         
         self.h = h  # finite-difference step
         
-        self.grav = 0
+        self.grav = 98.8
         self.m_p = 1  # mass  
         self.l = 2 #length of pole
         self.mu = 0.01  # friction constant
@@ -38,8 +38,8 @@ class InvertedPendulum_cart(BaseProblem):
         # Number of constraints
         self.m = (self.N+2)*self.state_dim
 
-        self.r = 1e-2
-        self.q = 100
+        self.r = 1e-4
+        self.q = 1
 
         
     @property
@@ -58,9 +58,9 @@ class InvertedPendulum_cart(BaseProblem):
         """
         x1, x2,x3,x4 = x
         y_dot=x2
-        v_dot=-1*np.sin(x3)*self.e+u
+        v_dot=-1*x3*self.e+u
         theta_dot = x4
-        theta_ddot = 1*np.sin(x3)-u  +   self.grav / self.l * np.cos(x3)*self.e - self.mu/( self.l**2)*self.e * x4
+        theta_ddot = 1*x3-u  +   self.grav / self.l * np.cos(x3)*self.e - self.mu/( self.l**2)*self.e * x4
         return np.array([y_dot,v_dot,theta_dot, theta_ddot])
 
     
@@ -72,9 +72,9 @@ class InvertedPendulum_cart(BaseProblem):
         x1, x2,x3,x4 = x
         
         y_dot_dx=np.array([0,1,0,0]);
-        v_dot_dx=np.array([0,0,-self.e*(np.sin(x3)*0+1*np.cos(x3)),0]);
+        v_dot_dx=np.array([0,0,-self.e*(np.sin(x3)*0+1),0]);
         theta_dot_dx=np.array([0,0,0,1]);
-        theta_ddot_dx =np.array([0,0,(np.sin(x3)*0+1*np.cos(x3))-self.grav / self.l * np.sin(x3)*self.e,- self.mu/( self.l**2)*self.e]);
+        theta_ddot_dx =np.array([0,0,(np.sin(x3)*0+1)-self.grav / self.l * np.sin(x3)*self.e,- self.mu/( self.l**2)*self.e]);
         
         y_dot_du=np.array([0]);
         v_dot_du=np.array([1]);
