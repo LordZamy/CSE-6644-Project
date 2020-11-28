@@ -10,20 +10,25 @@ from scipy.sparse import eye
 
 from scipy import sparse
 
-class InvertedPendulum(BaseProblem):
+class InvertedPendulum_cart(BaseProblem):
 
     def __init__(self, N=10, h=1e-5):
 
         self.N = N  # n steps
-        self.dt = 1./N  # time step
-
+        max_time=1.
+        self.dt = max_time/N  # time step
+        
+        self.time = np.linspace(0,1.2*max_time,np.int(1.2*N))
+        
         self.h = h  # finite-difference step
         
         self.grav = 9.8
         self.m = self.l = 1  # mass and length of pole
         self.mu = 0.01  # friction constant
 
-        self.state_dim = 2
+        self.m_cart=10
+        self.e=self.m/(self.m_cart+self.m)
+        self.state_dim = 4
         self.input_dim = 1
 
         # Number of variables
@@ -32,7 +37,7 @@ class InvertedPendulum(BaseProblem):
         # Number of constraints
         self.m = (self.N+2)*self.state_dim
 
-        self.r = 1e-4
+        self.r = 1e0
         self.q = 1
 
         
@@ -50,10 +55,12 @@ class InvertedPendulum(BaseProblem):
         x = [theta, theta_dot] (State variables)
         u = torque (Decision variables)
         """
-        x1, x2 = x
-        theta_dot = x2
-        theta_ddot = self.grav / self.l * np.sin(x1) - self.mu/(self.m * self.l**2) * x2 + 1./(self.m * self.l**2)*u
-        return np.array([theta_dot, theta_ddot])
+        x1, x2,x3,x4 = x
+        y_dot=x2
+        v_dot=-x3*self.e+u
+        theta_dot = x4
+        theta_ddot = x3-u  +   self.grav / self.l * np.cos(x3)*self.e - self.mu/( self.l**2)*self.e * x4
+        return np.array([y_dot,v_dot,theta_dot, theta_ddot])
 
     
     def df(self, x, u):
@@ -61,28 +68,27 @@ class InvertedPendulum(BaseProblem):
         x = [theta, theta_dot] (State variables)
         u = torque (Decision variables)
         """
-        x1, x2 = x
-        theta_dot = x2
-        theta_ddot = self.grav / self.l * np.sin(x1) - self.mu/(self.m * self.l**2) * x2 + 1./(self.m * self.l**2)*u
+        x1, x2,x3,x4 = x
         
-        dx1=self.grav / self.l * np.cos(x1)
-        dx2=- self.mu/(self.m * self.l**2)
-        du= 1./(self.m * self.l**2)
+        y_dot_dx=np.array([0,1,0,0]);
+        v_dot_dx=np.array([0,0,-self.e,0]);
+        theta_dot_dx=np.array([0,0,0,1]);
+        theta_ddot_dx =np.array([0,0,1-self.grav / self.l * np.sin(x3)*self.e,- self.mu/( self.l**2)*self.e]);
         
-        #d_theta_dot_dx=np.array([0,1]);
+        y_dot_du=np.array([0]);
+        v_dot_du=np.array([1]);
+        theta_dot_du=np.array([0]);
+        theta_ddot_du =np.array([-1]);
         
-        dot_dx=np.array([[0,1],[dx1,dx2]]);
-        
-        dot_du=np.array([0,du]);
-        
-        d_theta_ddot_du=np.array([du]);
-        
+        #
+        dot_dx=np.vstack((y_dot_dx,v_dot_dx,theta_dot_dx,theta_ddot_dx))
+        dot_du=np.concatenate((y_dot_du,v_dot_du,theta_dot_du,theta_ddot_du))
         return dot_dx,dot_du
     
     
     def F(self, z):
         r = self.r
-        Q = self.q * np.array([[1, 0],[0,1]])
+        Q = self.q * np.eye(self.state_dim)
 
         xs = z[:-self.N]
         us = z[-self.N:]
@@ -93,8 +99,8 @@ class InvertedPendulum(BaseProblem):
             J += r * us[i]**2 + x.T @ (Q @ x)
         J *= 0.5
 
-        x1_final, x2_final = xs[-2], xs[-1]
-        J += 0.5 * (10 * x1_final ** 2 + x2_final**2)
+        y_final, v_final,theta_final, q_final =xs[-4], xs[-3], xs[-2], xs[-1]
+        J += 0.5 * (10 * theta_final ** 2 + q_final**2)
 
         return J
 
@@ -148,10 +154,13 @@ class InvertedPendulum(BaseProblem):
             k += self.state_dim
 
         # ending theta & thetadot should be zero
-        c_[-2*self.state_dim:-self.state_dim] = xs[-self.state_dim:]  
+        c_[-2*self.state_dim:-self.state_dim] = (xs[-self.state_dim:] )
 
+        
+        c_[-4] = xs[3]
+        c_[-3] = xs[2]
         # Starting theta at pi radians
-        c_[-2] = xs[0] - np.pi
+        c_[-2] = xs[0]+1
         
         # Starting thetadot at 0 rad/s
         c_[-1] = xs[1]
@@ -178,8 +187,14 @@ class InvertedPendulum(BaseProblem):
             dot_dx,dot_du=self.df(x,u)
             
             for j in range(self.state_dim):
-                dc_[k+j,k+self.state_dim+j] = 1
-            dc_[k:k+self.state_dim,k:k+self.state_dim]=-1-dt*dot_dx+np.array([[0,1],[1,0]])#np.concatenate([d_theta_dot_dx,d_theta_ddot_dx],axis=1) )
+                dc_[k+j,k+self.state_dim+j] += 1
+                
+            for j in range(self.state_dim):
+                dc_[k+j,k+j] += -1    
+                # for jj in range(self.state_dim):
+                    # dc_[k+j,k+j+jj] +=-dt*dot_dx[j,jj]
+                    
+            dc_[k:k+self.state_dim,k:k+self.state_dim]+=-dt*dot_dx#-1+np.array([[0,0,0,1],[0,0,1,0],[0,1,0,0],[1,0,0,0]])#np.concatenate([d_theta_dot_dx,d_theta_ddot_dx],axis=1) )
             dc_[k:k+self.state_dim,i-self.N]=-dt*dot_du#np.concatenate([d_theta_dot_du,d_theta_ddot_du],axis=0)
 
 
@@ -187,14 +202,19 @@ class InvertedPendulum(BaseProblem):
 
         # ending theta & thetadot should be zero
         for j in range(self.state_dim):
-            dc_[-2*self.state_dim+j,-self.state_dim-self.N+j] =1
+            dc_[-2*self.state_dim+j,-self.state_dim-self.N+j] +=1
         #dc_[-2*self.state_dim:-self.state_dim,-self.state_dim:] = 1
 
         # Starting theta at pi radians
-        dc_[-2,0] = 1
+        dc_[-2,0] += 1
         
         # Starting thetadot at 0 rad/s
-        dc_[-1,1] = 1
+        dc_[-1,1] += 1
+        
+        dc_[-3,2] += 1
+        
+        dc_[-4,3] += 1
+        
         #print(dc_)
         # print(self.N)
         # print(self.m)
@@ -235,10 +255,11 @@ class InvertedPendulum(BaseProblem):
             
             #print(GG)
             #print(HH) 
-            #sG = sparse.csr_matrix(GG)
+            # sG = sparse.csr_matrix(GG)
             sG=self.dc(z) 
 
-            #print(sG.toarray()-GG)
+            # print(np.amax(np.abs(sG.toarray()-GG)))
+            # print(sG.toarray()-GG)
             return sG
 
         return LinearOperator(shape, matvec=matvec, rmatvec=rmatvec)
@@ -334,44 +355,107 @@ class InvertedPendulum(BaseProblem):
     def plot(self, z):
 
         us = z[-self.N:]
+        xs_z = z[:-self.N]
+        
+        xs = np.zeros((len(self.time), self.state_dim), dtype=z.dtype)
+        xs[0] = [-1,0,0, 0]
 
-        xs = np.zeros((self.N+1, self.state_dim), dtype=z.dtype)
-        xs[0] = [np.pi, 0]
+        
+        for i in range(len(self.time)-1):
+            if(i<self.N):
+                xs[i+1] = xs[i] + self.dt * self.f(xs[i], us[i])
+                
+            else:
+                xs[i+1] = xs[i] + self.dt * self.f(xs[i], 0)
+            # print(xs[i+0])
 
-        for i in range(self.N):
-            xs[i+1] = xs[i] + self.dt * self.f(xs[i], us[i])
-
-        thetas = -xs[:,0] + np.pi/2
-
+        ya = xs[:,0] 
+        va = xs[:,1] 
+        theta_a = xs[:,2]
+        qa = xs[:,3]
         # 
 
-        fig = plt.figure()
-        ax = plt.axes(xlim=(-1.1, 1.1), ylim=(-1.1, 1.1))
-        line, = ax.plot([], [], lw=3)
+        plt.figure(figsize=(12,10))
+
+        plt.subplot(221)
+        plt.plot(self.time[:len(us)],us,'m',lw=2)
+        plt.legend([r'$u$'],loc=1)
+        plt.ylabel('Force')
+        plt.xlabel('Time')
+        plt.xlim(self.time[0],self.time[-1])
+
+        plt.subplot(222)
+        plt.plot(self.time,va,'g',lw=2)
+        plt.legend([r'$v$'],loc=1)
+        plt.ylabel('Velocity')
+        plt.xlabel('Time')
+        plt.xlim(self.time[0],self.time[-1])
+
+        plt.subplot(223)
+        plt.plot(self.time,ya,'r',lw=2)
+        plt.legend([r'$y$'],loc=1)
+        plt.ylabel('Position')
+        plt.xlabel('Time')
+        plt.xlim(self.time[0],self.time[-1])
+
+        plt.subplot(224)
+        plt.plot(self.time,theta_a,'y',lw=2)
+        plt.plot(self.time,qa,'c',lw=2)
+        plt.legend([r'$\theta$',r'$q$'],loc=1)
+        plt.ylabel('Angle')
+        plt.xlabel('Time')
+        plt.xlim(self.time[0],self.time[-1])
+
+        plt.rcParams['animation.html'] = 'html5'
+
+        x1 = ya
+        y1 = np.zeros(len(self.time))
+
+        #suppose that l = 1
+        x2 = 1*np.sin(theta_a)+x1
+        x2b = 1.05*np.sin(theta_a)+x1
+        y2 = 1*np.cos(theta_a)-y1
+        y2b = 1.05*np.cos(theta_a)-y1
+
+        fig = plt.figure(figsize=(8,6.4))
+        ax = fig.add_subplot(111,autoscale_on=False,\
+                             xlim=(-8.5,8.5),ylim=(-0.4,1.2))
+        ax.set_xlabel('position')
+        ax.get_yaxis().set_visible(False)
+
+        crane_rail, = ax.plot([-8.5,8.5],[-0.2,-0.2],'k-',lw=4)
+        start, = ax.plot([-1,-1],[-1.5,1.5],'k:',lw=2)
+        objective, = ax.plot([0,0],[-0.5,1.5],'k:',lw=2)
+        mass1, = ax.plot([],[],linestyle='None',marker='s',\
+                         markersize=20,markeredgecolor='k',\
+                         color='orange',markeredgewidth=2)
+        mass2, = ax.plot([],[],linestyle='None',marker='o',\
+                         markersize=20,markeredgecolor='k',\
+                         color='orange',markeredgewidth=2)
+        line, = ax.plot([],[],'o-',color='orange',lw=4,\
+                        markersize=6,markeredgecolor='k',\
+                        markerfacecolor='k')
+        time_template = 'time = %.1fs'
+        time_text = ax.text(0.05,0.9,'',transform=ax.transAxes)
+        start_text = ax.text(-1.06,-0.3,'start',ha='right')
+        end_text = ax.text(0.06,-0.3,'objective',ha='left')
+        ax.set_aspect('equal', adjustable='box')    
         
-        N=self.N+1;
         def init():
-            line.set_data([], [])
-            return line,
+            mass1.set_data([],[])
+            mass2.set_data([],[])
+            line.set_data([],[])
+            time_text.set_text('')
+            return line, mass1, mass2, time_text
+
         def animate(i):
-            x = np.array([0,np.cos(thetas[i%N])])
-            y = np.array([0,np.sin(thetas[i%N])])
-            line.set_data(x, y)
-            return line,
+            mass1.set_data([x1[i]],[y1[i]-0.1])
+            mass2.set_data([x2b[i]],[y2b[i]])
+            line.set_data([x1[i],x2[i]],[y1[i],y2[i]])
+            time_text.set_text(time_template % self.time[i])
+            return line, mass1, mass2, time_text
 
-        anim = animation.FuncAnimation(fig, animate, init_func=init,
-                                       frames=200, interval=100, blit=True)
-
-        anim.save('sine_wave.gif', writer='imagemagick')
-        
-        
-        plt.scatter(np.cos(thetas), np.sin(thetas))
-        plt.scatter(np.cos(thetas[0]), np.sin(thetas[0]), label='start')
-        plt.scatter(np.cos(thetas[-1]), np.sin(thetas[-1]), label='end')
-        plt.axis('square')
-        plt.ylim([-1.1, 1.1])
-        plt.xlim([-1.1, 1.1])
-        plt.legend()
+        ani_a = animation.FuncAnimation(fig, animate, \
+                 np.arange(1,len(self.time)), \
+                 interval=100,blit=False,init_func=init)
         plt.show()
-            
-        

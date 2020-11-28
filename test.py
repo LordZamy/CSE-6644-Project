@@ -6,6 +6,8 @@ from scipy.sparse import eye
 import time
 
 from nlp_problems import InvertedPendulum
+
+from nlp_problems import InvertedPendulum_cart
 import preconditioners
 
 
@@ -22,7 +24,7 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
     z = np.zeros(n+m)
 
     # For storing residuals in krylov callback
-    norm_info = dict(time=[], c=[], Lx=[], clin=[], Lxlin=[],Res=[])
+    norm_info = dict(time=[], c=[], Lx=[], clin=[], Lxlin=[],Res=[],num_Iter=[])
     
     
     #Finite Difference check of gradient
@@ -87,7 +89,9 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
             norm_info['Res'].append(np.linalg.norm(res))
         
         z = solver(K, b, z, M=M, callback=solver_callback)
-
+        
+        norm_info['num_Iter'].append(num_iters)
+        
         print(f"---num solver iters: {num_iters[0]}")
         
         time_solve= time.time()-temp_t3
@@ -99,7 +103,8 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
 
         if callback:
             callback(x)
-
+            
+            
         if np.linalg.norm(p) < eps and np.linalg.norm(cx) < eps:
             break
         
@@ -118,9 +123,9 @@ if __name__ == '__main__':
 
     PLOT = True
     
-    N = 50
+    N = 100
     h = 1e-5
-    problem = InvertedPendulum(N=N, h=h)
+    problem = InvertedPendulum_cart(N=N, h=h)
 
     n = problem.nvars
     x0 = np.random.randn(n)
@@ -133,20 +138,23 @@ if __name__ == '__main__':
             print(f"||c(x)|| = {np.linalg.norm(problem.c(x)):.5f}")
             print(f"F(x) = {problem.F(x):.2f}")
             print(f"time = {time.time() - t0:.5f}")
+            print(problem.c(x)[-10:])
+            print(x[-10-N:-N])
     
     # Modify this to change the solver. Maybe some globalization strategies can be used.
     def solver(A, b,x0, M=None, callback=None):
-        #return linalg.gmres(A, b, tol=1e-3, M=M, callback=callback, callback_type='x')[0]
-        #return linalg.cg(A, b, tol=1e-6, M=M, callback=callback)[0]
-        sol,info=linalg.minres(A, b, tol=1e-4, M=M, callback=callback)
+        # return linalg.gmres(A, b, tol=1e-3, M=M, callback=callback, callback_type='x')[0]
+        return linalg.cg(A, b, tol=1e-6, M=M, callback=callback)[0]
+        # sol,info=linalg.minres(A, b, tol=1e-8, M=M, callback=callback)
+        # print(info)
+        # return sol
         
-        return sol
     
     #Mfunc = preconditioners.bramble_precond
     Mfunc = preconditioners.P1
     Mfunc = preconditioners.block_diag
     #Mfunc = preconditioners.schoberl_precond
-    #Mfunc = None
+    # Mfunc = None
     #Mfunc = lambda problem, x, lam: eye(problem.nvars + problem.nconstraints)
 
     zstar, norm_info = optimize(problem, x0, verbose=True, max_iters=20, solver=solver,
@@ -154,15 +162,29 @@ if __name__ == '__main__':
 
     print(f"Total time: {time.time() - t0}")
 
+    
     if PLOT:
         problem.plot(zstar)
 
     times = np.array(norm_info['time']) - t0
     
+    
+    
+    
+    
+    
     plt.semilogy(times, norm_info['c'], label='c(x)')
     plt.semilogy(times, norm_info['clin'], 'x--', label='c+Gp')
     plt.legend()
     plt.xlabel("time (s)")
+    plt.show()
+    
+    index_iter=(np.cumsum(norm_info['num_Iter'])-1).astype(int)
+    plt.semilogy(np.array(norm_info['c'])[index_iter], label='c(x) iter')
+    plt.semilogy( np.array(norm_info['clin'])[index_iter], 'x--', label='c+Gp iter')
+    
+    plt.legend()
+    plt.xlabel("Optimization Iteration")
     plt.show()
     plt.semilogy(times, norm_info['Lx'], label=r'$L_x$')
     plt.semilogy(times, norm_info['Lxlin'], 'x--', label=r'$g-G^T\lambda + Hp$')
@@ -171,12 +193,6 @@ if __name__ == '__main__':
     plt.legend()
     plt.show()
     
-    plt.semilogy(times[-5:], norm_info['Lx'][-5:], 'x', label=r'$L_x$')
-    plt.semilogy(times[-5:], norm_info['Lxlin'][-5:], 'x--', label=r'$g-G^T\lambda + Hp$')
-    plt.semilogy(times[-5:], norm_info['Res'][-5:], 'x--', label=r'Total Residue')
-    plt.xlabel("time (s)")
-    plt.legend()
-    plt.show()
     
 
     ######################################
