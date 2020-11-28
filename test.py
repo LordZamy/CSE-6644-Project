@@ -18,7 +18,7 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
     
     n, m = problem.nvars, problem.nconstraints
 
-    alpha=0.1
+    alpha=1.0
     x = x0
     lam = np.random.randn(m)
     z = np.zeros(n+m)
@@ -132,8 +132,9 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
         
         
         if callback:
-            callback(x, lam)
-
+            callback(x)
+            
+            
         if np.linalg.norm(p) < eps and np.linalg.norm(cx) < eps:
             break
         
@@ -152,7 +153,7 @@ if __name__ == '__main__':
 
     PLOT = True
     
-    N = 10
+    N = 100
     h = 1e-5
     problem = InvertedPendulum(N=N, h=h)
 
@@ -161,7 +162,7 @@ if __name__ == '__main__':
 
     t0 = time.time()
     
-    def outer_callback(x, lam):
+    def outer_callback(x):
         with np.printoptions(precision=3):
             print(f"x[0] = {x[:2]}, x[end] = {x[-N-2:-N]}")
             print(f"||c(x)|| = {np.linalg.norm(problem.c(x)):.5f}")
@@ -172,19 +173,21 @@ if __name__ == '__main__':
     
     # Modify this to change the solver. Maybe some globalization strategies can be used.
     def solver(A, b,x0, M=None, callback=None):
-        #return linalg.gmres(A, b, tol=1e-3, M=M, callback=callback, callback_type='x')[0]
-        return linalg.cg(A, b, tol=1e-3, M=M, callback=callback)[0]
-        # return linalg.minres(A, b, tol=1e-4, M=M, callback=callback)[0]
+        # return linalg.gmres(A, b, tol=1e-3, M=M, callback=callback, callback_type='x')[0]
+        # return linalg.cg(A, b, tol=1e-6, M=M, callback=callback)[0]
+        sol,info=linalg.minres(A, b, tol=1e-8, M=M, callback=callback)
+        print(info)
+        return sol
+        
     
-    # Mfunc = preconditioners.bramble_precond
+    #Mfunc = preconditioners.bramble_precond
     Mfunc = preconditioners.P1
-    # Mfunc = preconditioners.block_diag
-    # Mfunc = preconditioners.schoberl_precond
-    # Mfunc = preconditioners.diag_hessian
+    Mfunc = preconditioners.block_diag
+    #Mfunc = preconditioners.schoberl_precond
     # Mfunc = None
     #Mfunc = lambda problem, x, lam: eye(problem.nvars + problem.nconstraints)
 
-    zstar, norm_info = optimize(problem, x0, verbose=True, max_iters=200, solver=solver,
+    zstar, norm_info = optimize(problem, x0, verbose=True, max_iters=100, solver=solver,
                                 callback=outer_callback, Mfunc=Mfunc)
 
     print(f"Total time: {time.time() - t0}")
