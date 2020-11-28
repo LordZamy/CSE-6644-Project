@@ -22,9 +22,9 @@ class InvertedPendulum_cart(BaseProblem):
         
         self.h = h  # finite-difference step
         
-        self.grav = 98.8
+        self.grav = 9.8
         self.m_p = 1  # mass  
-        self.l = 2 #length of pole
+        self.l = 1 #length of pole
         self.mu = 0.01  # friction constant
 
         self.m_cart=10
@@ -39,9 +39,10 @@ class InvertedPendulum_cart(BaseProblem):
         self.m = (self.N+2)*self.state_dim
 
         self.r = 1e-4
-        self.q = 1
-
+        self.q = 0
         
+        self.start_point=-1
+        self.end_state=np.array([-0.9,0,0,0])
     @property
     def nvars(self):
         return self.n
@@ -155,13 +156,13 @@ class InvertedPendulum_cart(BaseProblem):
             k += self.state_dim
 
         # ending theta & thetadot should be zero
-        c_[-2*self.state_dim:-self.state_dim] = (xs[-self.state_dim:] )
+        c_[-2*self.state_dim:-self.state_dim] = (xs[-self.state_dim:]-self.end_state )
 
         
         c_[-4] = xs[3]
         c_[-3] = xs[2]
         # Starting theta at pi radians
-        c_[-2] = xs[0]+1
+        c_[-2] = xs[0]-self.start_point
         
         # Starting thetadot at 0 rad/s
         c_[-1] = xs[1]
@@ -307,7 +308,7 @@ class InvertedPendulum_cart(BaseProblem):
             
             # vals, vecs = sparse.linalg.eigs(sH,k=6)
             # print(vals)
-            return sH+0*eye(n)*10**-16
+            return sH+0*eye(n)*10**-6
             
         return LinearOperator((n, n), matvec=matvec)
 
@@ -359,7 +360,7 @@ class InvertedPendulum_cart(BaseProblem):
         xs_z = z[:-self.N]
         
         xs = np.zeros((len(self.time), self.state_dim), dtype=z.dtype)
-        xs[0] = [-1,0,0, 0]
+        xs[0] = [self.start_point,0,0, 0]
 
         
         for i in range(len(self.time)-1):
@@ -420,15 +421,16 @@ class InvertedPendulum_cart(BaseProblem):
 
         fig = plt.figure(figsize=(8,6.4))
         ax = fig.add_subplot(111,autoscale_on=False,\
-                             xlim=(-8.5,8.5),ylim=(-1.2*self.l,1.2*self.l))
+                             xlim=(1.1*np.amin(ya),1.1*np.amax(ya)),ylim=(-0.6*self.l,1.2*self.l))
         ax.set_xlabel('position')
         ax.get_yaxis().set_visible(False)
 
-        crane_rail, = ax.plot([-8.5,8.5],[-0.2,-0.2],'k-',lw=4)
-        start, = ax.plot([-1,-1],[-1.5,1.5],'k:',lw=2)
-        objective, = ax.plot([0,0],[-0.5,1.5],'k:',lw=2)
+        crane_rail, = ax.plot([1.1*np.amin(ya),1.1*np.amax(ya)],[-0.2,-0.2],'k-',lw=4)
+        start, = ax.plot([self.start_point,self.start_point],[-1.5*self.l,1.5*self.l],'k:',lw=2)
+        objective, = ax.plot([self.end_state[0],self.end_state[0]],[-1.5*self.l,1.5*self.l],'k:',lw=2)
+        
         mass1, = ax.plot([],[],linestyle='None',marker='s',\
-                         markersize=20,markeredgecolor='k',\
+                         markersize=40,markeredgecolor='k',\
                          color='orange',markeredgewidth=2)
         mass2, = ax.plot([],[],linestyle='None',marker='o',\
                          markersize=20,markeredgecolor='k',\
@@ -437,9 +439,11 @@ class InvertedPendulum_cart(BaseProblem):
                         markersize=6,markeredgecolor='k',\
                         markerfacecolor='k')
         time_template = 'time = %.1fs'
+        
+        
         time_text = ax.text(0.05,0.9,'',transform=ax.transAxes)
-        start_text = ax.text(-1.06,-0.3,'start',ha='right')
-        end_text = ax.text(0.06,-0.3,'objective',ha='left')
+        start_text = ax.text(-1.06,-0.5,'start',ha='right')
+        end_text = ax.text(self.end_state[0]+0.06,-0.5,'objective',ha='left')
         ax.set_aspect('equal', adjustable='box')    
         
         def init():
@@ -459,4 +463,6 @@ class InvertedPendulum_cart(BaseProblem):
         ani_a = animation.FuncAnimation(fig, animate, \
                  np.arange(1,len(self.time)), \
                  interval=100+500/self.N,blit=False,init_func=init)
+                 
+        ani_a.save('cart.gif', writer='imagemagick')         
         plt.show()

@@ -18,7 +18,7 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
     
     n, m = problem.nvars, problem.nconstraints
 
-    alpha=0.1
+    alpha=1.0
     x = x0
     lam = np.random.randn(m)
     z = np.zeros(n+m)
@@ -103,7 +103,7 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
         L0=np.linalg.norm(problem.c(x))
         
         L=L0+1
-        l_M=1;
+        l_M=1.0;
         l_m=0.0001
         alpha=l_M
         while ((l_M-l_m)/2>1.e-4):
@@ -114,6 +114,7 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
             if(L>L0):
                 l_M=alpha
             else:
+                L0=L
                 l_m=alpha
             alpha=(l_M+l_m)/2
         print(alpha)    
@@ -143,7 +144,7 @@ if __name__ == '__main__':
 
     PLOT = True
     
-    N = 50
+    N = 100
     h = 1e-5
     problem = InvertedPendulum_cart(N=N, h=h)
 
@@ -164,10 +165,10 @@ if __name__ == '__main__':
     # Modify this to change the solver. Maybe some globalization strategies can be used.
     def solver(A, b,x0, M=None, callback=None):
         # return linalg.gmres(A, b, tol=1e-3, M=M, callback=callback, callback_type='x')[0]
-        return linalg.cg(A, b, tol=1e-6, M=M, callback=callback)[0]
-        # sol,info=linalg.minres(A, b, tol=1e-8, M=M, callback=callback)
-        # print(info)
-        # return sol
+        # return linalg.cg(A, b, tol=1e-6, M=M, callback=callback)[0]
+        sol,info=linalg.minres(A, b, tol=1e-8, M=M, callback=callback)
+        print(info)
+        return sol
         
     
     #Mfunc = preconditioners.bramble_precond
@@ -177,7 +178,7 @@ if __name__ == '__main__':
     # Mfunc = None
     #Mfunc = lambda problem, x, lam: eye(problem.nvars + problem.nconstraints)
 
-    zstar, norm_info = optimize(problem, x0, verbose=True, max_iters=200, solver=solver,
+    zstar, norm_info = optimize(problem, x0, verbose=True, max_iters=100, solver=solver,
                                 callback=outer_callback, Mfunc=Mfunc)
 
     print(f"Total time: {time.time() - t0}")
