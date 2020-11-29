@@ -100,23 +100,32 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
         lam = z[n:]
 
 
-        L0=np.linalg.norm(problem.c(x))
+        L0 = np.linalg.norm(problem.c(x))
+        F0 = problem.F(x)
         
         L=L0+1
-        l_M=1.0;
+        l_M=1.;
         l_m=0.0001
         alpha=l_M
-        while ((l_M-l_m)/2>1.e-4):
-            
-            x_ = x + alpha*p
-            L=np.linalg.norm(problem.c(x_))
-            
-            if(L>L0):
-                l_M=alpha
-            else:
-                L0=L
-                l_m=alpha
+        while ((l_M - l_m) / 2 > 1.e-4):
             alpha=(l_M+l_m)/2
+            x_ = x + alpha*p
+            L = np.linalg.norm(problem.c(x_))
+            F = problem.F(x_)
+
+            if L0 < 1.e-4:
+                if L > L0 and F > F0:
+                    l_M = alpha
+                else:
+                    l_m = alpha
+            else:
+                if L > L0:
+                    l_M = alpha
+                else:
+                    L0 = L
+                    l_m = alpha
+
+
         print(alpha)    
         x=np.copy(x_)
         
@@ -146,7 +155,7 @@ if __name__ == '__main__':
     
     N = 10
     h = 1e-5
-    problem = InvertedPendulum_cart(N=N, h=h)
+    problem = InvertedPendulum(N=N, h=h)
 
     n = problem.nvars
     x0 = np.random.randn(n)
