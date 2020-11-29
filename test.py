@@ -144,7 +144,7 @@ if __name__ == '__main__':
 
     PLOT = True
     
-    N = 100
+    N = 10
     h = 1e-5
     problem = InvertedPendulum_cart(N=N, h=h)
 
@@ -165,20 +165,21 @@ if __name__ == '__main__':
     # Modify this to change the solver. Maybe some globalization strategies can be used.
     def solver(A, b,x0, M=None, callback=None):
         # return linalg.gmres(A, b, tol=1e-3, M=M, callback=callback, callback_type='x')[0]
-        # return linalg.cg(A, b, tol=1e-6, M=M, callback=callback)[0]
-        sol,info=linalg.minres(A, b, tol=1e-8, M=M, callback=callback)
-        print(info)
-        return sol
+        return linalg.cg(A, b, tol=1e-6, M=M, callback=callback)[0]
+        # sol,info=linalg.minres(A, b, tol=1e-8, M=M, callback=callback)
+        # print(info)
+        # return sol
         
     
-    #Mfunc = preconditioners.bramble_precond
-    Mfunc = preconditioners.P1
-    Mfunc = preconditioners.block_diag
+    Mfunc = preconditioners.bramble_precond
+    # Mfunc = preconditioners.P1
+    # Mfunc = preconditioners.block_diag
+    Mfunc = preconditioners.composed
     #Mfunc = preconditioners.schoberl_precond
     # Mfunc = None
     #Mfunc = lambda problem, x, lam: eye(problem.nvars + problem.nconstraints)
 
-    zstar, norm_info = optimize(problem, x0, verbose=True, max_iters=100, solver=solver,
+    zstar, norm_info = optimize(problem, x0, verbose=True, max_iters=2, solver=solver,
                                 callback=outer_callback, Mfunc=Mfunc)
 
     print(f"Total time: {time.time() - t0}")
@@ -226,22 +227,18 @@ if __name__ == '__main__':
         return e
     
     # Calculate jacobian of constraints
-    G_ = problem.G(x0)
-    G = np.zeros(G_.shape)
+    G = problem.G(x0).toarray()
+    
 
-    for i in range(problem.nconstraints):
-        G[:,i] = G_ @ e_i(problem.nvars, i)
+
         
     print(f"shape(G) = {G.shape}")
     print(f"rank(G) = {np.linalg.matrix_rank(G)}")
 
     # Calculate Hessian of lagrangian
-    lam = np.random.randn(len(G))
-    H_ = problem.H(zstar, lam)
-    H = np.zeros(H_.shape)
-
-    for i in range(len(H)):
-        H[:,i] = H_ @ e_i(len(H), i)
+    lam = np.random.randn(G.shape[0])
+    H = problem.H(zstar, lam).toarray()
+    
 
     eigvals_H = np.real(np.linalg.eigvals(H))
     abseigvals_H = np.abs(eigvals_H)
@@ -253,7 +250,31 @@ if __name__ == '__main__':
     print(f"num pos eigs = {sum(eigvals_H > 0)}")
 
     # Calculate KKT matrix
-    K = problem.KKT(x0, lam)
+    K = problem.KKT(x0, lam).toarray()
+    
+    eigvals = np.real(linalg.eigs(K, k = problem.nvars + problem.nconstraints - 2)[0])
+    abseigvals = np.abs(eigvals)
+    
+    
+    plt.figure(figsize=(8,8))
+
+    plt.plot([0,len(eigvals)],[0,0],'k--',lw=2)
+    plt.plot(eigvals,'y*',lw=2)
+    
+    # plt.legend([r'$u$'],loc=1)
+    plt.ylabel('Eigenvalues')
+    #plt.xlabel('Time')
+    plt.show()
+    # plt.xlim(self.time[0],self.time[-1])
+    
+    print("Before Precondition_________________________________________")
+    print(f"shape(K) = {K.shape}")
+    print(f"cond(K) = {np.max(abseigvals)/np.min(abseigvals)}")
+    print(f"num zero eigs = {sum(abseigvals < 1e-9)}")
+    print(f"num neg eigs = {sum(eigvals < 0)}")
+    print(f"num pos eigs = {sum(eigvals > 0)}")
+    
+    print("After Precondition_________________________________________")
     if Mfunc:
         M_ = Mfunc(problem, x0, lam)
         M = np.zeros(M_.shape)
@@ -264,6 +285,16 @@ if __name__ == '__main__':
         
     eigvals = np.real(linalg.eigs(K, k = problem.nvars + problem.nconstraints - 2)[0])
     abseigvals = np.abs(eigvals)
+    
+    plt.figure(figsize=(8,8))
+
+    plt.plot([0,len(eigvals)],[0,0],'k--',lw=2)
+    plt.plot(eigvals,'m*',lw=2)
+    
+    # plt.legend([r'$u$'],loc=1)
+    plt.ylabel('Eigenvalues')
+    #plt.xlabel('Time')
+    plt.show()
     
     print(f"shape(K) = {K.shape}")
     print(f"cond(K) = {np.max(abseigvals)/np.min(abseigvals)}")

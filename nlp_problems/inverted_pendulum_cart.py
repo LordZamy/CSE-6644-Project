@@ -39,7 +39,7 @@ class InvertedPendulum_cart(BaseProblem):
         self.m = (self.N+2)*self.state_dim
 
         self.r = 1e-4
-        self.q = 0
+        self.q = 1
         
         self.start_point=-1
         self.end_state=np.array([-0.9,0,0,0])

@@ -238,6 +238,52 @@ def block_diag(problem, x, lam):
     
     
     
+def composed(problem, x, lam):
+        
+        
+    H = problem.H(x, lam)
+    Hinv = linalg.spsolve(H, eye(len(x), format='csc'))
+    G = problem.G(x)
 
+    n = len(x)
+    m = len(lam)
+    shape = (m+n, m+n)
+    
+    def matvec_block(v):
+        v1 = v[:n]
+        v2 = v[n:]
+
+        res = np.zeros(n+m)
+
+        res[:n] = Hinv @ v1
+        res[n:] = spsolve(G @ Hinv @ G.T, v2)
+
+        return res
+
+    P_block=linalg.LinearOperator(shape, matvec=matvec_block)
+    
+    
+    Hprecond = pyamg.smoothed_aggregation_solver(H).aspreconditioner()
+    #Hprecond = linalg.spsolve(H, eye(len(x)))
+    
+    def matvec_bramble(v):
+        v1 = v[:n]
+        v2 = v[n:]
+
+        res = np.zeros((m+n))
+
+        #res[:n] = v1
+        #res[n:] = G @ (Hprecond @ (G.T @ v2))
+        res[:n] = Hprecond @ v1
+        res[n:] = G @ res[:n] - v2
+
+        return res
         
-        
+    P_bramble=linalg.LinearOperator(shape, matvec=matvec_bramble)
+    
+    def matvec(v):
+        return  P_block @ (P_bramble @ v)
+
+    
+    
+    return linalg.LinearOperator(shape, matvec=matvec)
