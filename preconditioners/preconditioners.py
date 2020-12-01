@@ -4,6 +4,9 @@ import scipy.sparse.linalg as linalg
 from scipy.sparse.linalg import spsolve
 from scipy.sparse import lil_matrix, eye
 
+def is_pos_semidef(x):
+    print(np.linalg.eigvals(x))
+    return np.all(np.linalg.eigvals(x) >= 0)
 
 def P1(problem, x, *args):
     """
@@ -51,7 +54,7 @@ def P1(problem, x, *args):
     return LO
 
 
-def P2(problem, x, lam):
+def P2(problem, x, lam, *args):
     """
     M = inv([[I B^T]
              [B  0 ]])
@@ -118,7 +121,7 @@ def P2(problem, x, lam):
     return LO
 
 
-def P_simple(problem, x, lam):
+def P_simple(problem, x, lam, *args):
     """
     M = inv(K)
     """
@@ -149,15 +152,26 @@ def P_simple(problem, x, lam):
     return LO
 
 
-def bramble_precond(problem, x, lam):
+def bramble_precond(problem, x, lam, *args):
     """
     Should result in a S.P.D. KKT matrix
 
     See: https://www.ams.org/journals/mcom/1988-50-181/S0025-5718-1988-0917816-8/S0025-5718-1988-0917816-8.pdf
     """
     H = problem.H(x, lam)
+    n = H.shape[0]
+    # print(H)
+    # smallest_value = min(H.data)
+    # if smallest_value <= 0:
+    #     H = H + (-smallest_value + 1) * eye(n)
+    smallest_value = min(H.diagonal().data)
+    if smallest_value <= 0:
+        H = H + (-smallest_value + 1.0) * eye(n)
+    
+    # print(is_pos_semidef(H.toarray()))
 
-    Hprecond = pyamg.smoothed_aggregation_solver(H).aspreconditioner()
+    # Hprecond = pyamg.smoothed_aggregation_solver(H).aspreconditioner()
+    Hprecond = linalg.inv(H)
     #Hprecond = linalg.spsolve(H, eye(len(x)))
     G = problem.G(x)
     
@@ -216,6 +230,11 @@ def block_diag(problem, x, lam):
     See; https://epubs.siam.org/doi/pdf/10.1137/100798491?download=true
     """
     H = problem.H(x, lam)
+    n = len(x)
+    smallest_value = min(H.diagonal().data)
+    if smallest_value <= 0:
+        H = H + (-smallest_value + 1.0) * eye(n)
+
     Hinv = linalg.spsolve(H, eye(len(x), format='csc'))
     G = problem.G(x)
 
@@ -237,10 +256,26 @@ def block_diag(problem, x, lam):
     return linalg.LinearOperator(shape, matvec=matvec)
     
     
+def block_diag_minres(problem, x, lam):
+    """
+    For use with MINRES, since it should maintain symmetry pretty well
+
+    See; https://epubs.siam.org/doi/pdf/10.1137/100798491?download=true
+    """
+    H = problem.H(x, lam)
+    n = len(x)
+    # print(is_pos_semidef(H.toarray())) 
+    smallest_value = min(H.diagonal().data)
+    if smallest_value <= 0:
+        H = H + (-smallest_value + 1.0) * eye(n)
+
+    Hinv = linalg.spsolve(H, eye(len(x), format='csc'))
+    G = problem.G(x)
+
+    n = len(x)
+    m = len(lam)
     
 def composed(problem, x, lam):
-        
-        
     H = problem.H(x, lam)
     Hinv = linalg.spsolve(H, eye(len(x), format='csc'))
     G = problem.G(x)

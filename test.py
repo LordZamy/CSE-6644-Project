@@ -56,6 +56,7 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
         
         b = np.block([gx, cx])
         
+        
         if Mfunc:
             M = Mfunc(problem, x, lam)
         else:
@@ -63,7 +64,7 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
                 
         # sK_ilu=linalg.spilu(K); 
         # M = linalg.LinearOperator(K.shape, sK_ilu.solve)  
-        
+
         num_iters = [0]
         
         temp_t3= time.time()
@@ -126,13 +127,12 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
                     l_m = alpha
 
 
-        print(alpha)    
+        print(alpha)
         x=np.copy(x_)
         
         
-        
         if callback:
-            callback(x)
+            callback(x, lam)
             
             
         if np.linalg.norm(p) < eps and np.linalg.norm(cx) < eps:
@@ -143,7 +143,7 @@ def optimize(problem, x0, eps=1e-4, max_iters=1000, callback=None, verbose=False
         print(f"Time per iteration: {time_iteration:.2f} \t Time Assembly: {time_assembly:.2f} \t Time solve: {time_solve:.2f}")
         
     if verbose:
-        print(f"Optimized in {it-1} iterations")
+        print(f"Optimized in {it+1} iterations")
 
     return x, norm_info
 
@@ -153,16 +153,16 @@ if __name__ == '__main__':
 
     PLOT = True
     
-    N = 10
+    N = 40
     h = 1e-5
-    problem = InvertedPendulum(N=N, h=h)
+    problem = InvertedPendulum_cart(N=N, h=h)
 
     n = problem.nvars
     x0 = np.random.randn(n)
 
     t0 = time.time()
     
-    def outer_callback(x):
+    def outer_callback(x, lam):
         with np.printoptions(precision=3):
             print(f"x[0] = {x[:2]}, x[end] = {x[-N-2:-N]}")
             print(f"||c(x)|| = {np.linalg.norm(problem.c(x)):.5f}")
@@ -180,15 +180,16 @@ if __name__ == '__main__':
         # return sol
         
     
-    Mfunc = preconditioners.bramble_precond
-    # Mfunc = preconditioners.P1
+    # Mfunc = preconditioners.bramble_precond
+    Mfunc = preconditioners.P1
     # Mfunc = preconditioners.block_diag
-    Mfunc = preconditioners.composed
+    # Mfunc = preconditioners.composed
+    # Mfunc = preconditioners.block_diag_minres
     #Mfunc = preconditioners.schoberl_precond
     # Mfunc = None
     #Mfunc = lambda problem, x, lam: eye(problem.nvars + problem.nconstraints)
 
-    zstar, norm_info = optimize(problem, x0, verbose=True, max_iters=2, solver=solver,
+    zstar, norm_info = optimize(problem, x0, verbose=True, max_iters=20, solver=solver,
                                 callback=outer_callback, Mfunc=Mfunc)
 
     print(f"Total time: {time.time() - t0}")
